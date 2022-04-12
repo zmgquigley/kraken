@@ -667,7 +667,7 @@ protraction <- function(P1,P2,P3, Yaw, ...) {
     MagTVNorm <- vlength(TVNorm)
     MagFemurVectorTVNorm <- MagFemurVectorTV*MagTVNorm
     CosdotFemurVectorTV <- dotFemurVectorTV/MagFemurVectorTVNorm
-    FemTVAngA <- (acos(CosdotFemurVectorTV))*RAD2DEG
+    FemTVAngA <- (acos(CosdotFemurVectorTV))*(180/pi) #converting radians to degree
     # %makes a one column matrix of angles of the protraction/retraction angle
     FemTVAngInit[i] <- FemTVAngA
   }
