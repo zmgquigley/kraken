@@ -680,7 +680,107 @@ protraction <- function(P1,P2,P3, Yaw, ...) {
     return(FemTVAng)
   }
 
+                          
+                          #### Abduction versus Adduction ####
+#' @title Calculate abduction versus abduction (in degrees) from XYZ coordinate data
+#'
+#' @name abduction
+#'
+#' @description Calculates the abduction angle (in degrees), of a limb based on the XYZ coordinates of three points along the limb. 
+#'
+#' @usage abduction(prox, dist, m1, m2)
+#'
+#' @param \code{prox} A data.frame of numeric values containing the X, Y, and Z coordinate data, respectively, for the more proximal point (e.g, the shoulder or hip), which is assumed to be the vertex of the angle
+#' @param \code{dist} A data.frame of numeric values containing the X, Y, and Z coordinate data, respectively, for the more distal point (e.g. the elbow or knee)
+#' @param \code{m1} A data.frame of numeric values containing the X, Y, and Z coordinate data, respectively, for the first midline point
+#' @param \code{m2} A data.frame of numeric values containing the X, Y, and Z coordinate data, respectively, for the second midline point
 
+#' @details These procedures follow the methodology used in Kawano and Blob (2013), Kawano et al. 2016, and Quigley et al. 2022 to calculate angles formed about the limb joints in animals. 
+#' @references Kawano SM, Blob RW. 2013. Propulsive forces of mudskipper fins and salamander limbs during terrestrial locomotion: implications for the invasion of land. Integrative and Comparative Biology 53(2): 283-294. \url{https://academic.oup.com/icb/article/53/2/283/806410/Propulsive-Forces-of-Mudskipper-Fins-and}
+#' @references Kawano SM, Economy DR, Kennedy MS, Dean D, Blob RW. 2016. Comparative limb bone loading in the humerus and femur of the tiger salamander Ambystoma tigrinum: testing the "mixed-chain" hypothesis for skeletal safety factors. Journal of Experimental Biology 219: 341-353. \url{http://jeb.biologists.org/content/219/3/341}
+#' @references Quigley ZMG, Blob RW, Kawano SM. 2022. Kinematic comparisons between mudskippers and salamanders. Journal of Experimental Zoology Part A. \url{https://doi.org/10.1002/jez.2594}
+
+#' @examples
+#' 
+
+#' shoulder <- matrix(c(0.006305306, 0.006526961, 0.006747555, -0.08206114, -0.08207707, -0.08207049, 0.006997669, 0.006980824, 0.006975157), 3, 3)
+#' elbow <- matrix(c(0.007826633, 0.007959096, 0.008068560, -0.07183020, -0.07185459, -0.07186337, 0.005754819, 0.005764666, 0.005774707), 3, 3)
+#' anterior midline  <- matrix(c(0.01164592, 0.01160690, 0.01157642, -0.07348876, -0.07345559, -0.07342105, -0.000631402, -0.000671288, -0.000709513), 3, 3)
+#' posterior midline <-  matrix(c(0.01264592, 0.01260690, 0.01257642, -0.07448876, -0.07445559, -0.07442105, -0.001631402, -0.001671288, -0.001709513), 3, 3)
+#'
+#' abductionAngle <- abduction(shoulder, elbow, anterior_midline, posterior_midline)
+#' 
+#' @importFrom pracma cross
+#' @export
+abduction <- function(prox, dist, m1, m2){
+  
+  #input variables are n by 3 dataframes containing the X, Y, Z coordinates for 
+  #the proximal joint (shoulder/ hip), distal joint (elbow/knee), and two points 
+  ##along the midline, where n equals the number of digitized trial frames
+  
+  
+  
+  HipPoint <- prox
+  KneePoint <- dist
+  
+  FemurVector <- HipPoint - KneePoint
+  HipPointTrans <- HipPoint - HipPoint
+  KneePointTrans1A <- KneePoint - HipPoint 
+  FemurVectorTrans1A <- HipPointTrans - KneePointTrans1A
+  
+  ## dot product between two row vectors
+  wdot <- function(a, b) {
+    y <- a*b
+    y <- t(sum(t(y)))
+    return(y)
+  }
+  
+  ## Cross product between two row vectors 
+  #library(pracma) # for the cross() function that returns a vector
+  wcross <- function(a, b) {
+    c <- t(pracma::cross(t(a),t(b)))
+    return(c)
+  }
+  
+  ## vlength
+  vlength <- function(x) {
+    v <- (wdot(x, x))^0.5
+    return(v)
+  }
+  
+  #Generate frontal plane at the height of the proximal joint by moving m1 and m2 
+  #to height of prox, then generating plane beween points
+  ## Setting up frontal Plane
+  planeP1 <- c(0, 0, 0)
+  planeP2 <- c(.1, 0, 0)
+  planeP3 <- c(0, .1, 0)
+  planeVec1 <- planeP2 - planeP1
+  planeVec2 <- planeP3 - planeP1
+  PlaneNorm <- t(wcross(planeVec1,planeVec2))#normal to plane
+  #transposed with t() to get it into row-form instead of column form
+  
+  
+  FemFRAngInit <- matrix()
+  for (i in 1:nrow(KneePointTrans1A)) {
+    FemurVectorTrans1AA <- FemurVectorTrans1A[i,]
+    dotFemurVectorFR <- wdot(FemurVectorTrans1AA,PlaneNorm)
+    MagFemurVectorFR <- vlength(FemurVectorTrans1AA)
+    MagPlaneNorm <- vlength(PlaneNorm)
+    MagFemurVectorPlaneNorm <- MagFemurVectorFR*MagPlaneNorm
+    CosdotFemurVectorFR <- dotFemurVectorFR/MagFemurVectorPlaneNorm
+    FemFRAngA <- (acos(CosdotFemurVectorFR))*(180/pi) #converting radians to degree
+    # %makes a one column matrix of angles of the abduction/adduction angle
+    FemFRAngInit[i] <- FemFRAngA
+  }
+  
+  FemFRAng <- abs(FemFRAngInit)
+  #setting the zero degrees to be perpendicular to x axis. Positive angles = abduction, negative angles = adduction. 
+  #See Methods of Quigley et al. 2022 for more detail
+  FemFRAng <- -(90-FemFRAng) 
+  #Roll was negligible so we did not include a correction
+  
+  return(FemFRAng)
+}
 
 
 #### Pitch ####
